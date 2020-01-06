@@ -13,12 +13,14 @@ type CLI struct {
 	blockchain *BlockChain `json:"blockchain,omitempty"`
 }
 
+//CreateBlockChain 创建区块链
 func (cli *CLI) CreateBlockChain(address string) {
 	bc := CreateBlockChain(address)
 	bc.DB.Close()
 	fmt.Printf("创建成功 -> %s", address)
 }
 
+//GetBalance 查询钱包
 func (cli *CLI) GetBalance(address string) {
 	bc := NewBlockChain(address)
 	defer bc.DB.Close()
@@ -47,12 +49,6 @@ func (cli *CLI) VaiidateArgs() {
 	}
 }
 
-//AddBlock 添加区块
-func (cli *CLI) AddBlock(data string) {
-	// cli.blockchain.AddBlock(data)
-	fmt.Println("添加区块成功")
-}
-
 //ShowBlockChain 显示区块链
 func (cli *CLI) ShowBlockChain() {
 	bc := NewBlockChain("")
@@ -60,14 +56,16 @@ func (cli *CLI) ShowBlockChain() {
 	bci := bc.Iterator()
 	for {
 		block := bci.Next()
-		fmt.Printf("上一块哈希:%x,当前块哈希:%x,pow:%s", block.PrevBlockHash, block.Hash)
+		fmt.Printf("上一块哈希:%x,当前块哈希:%x,", block.PrevBlockHash, block.Hash)
 		pow := NewProofOfWork(block)
-		fmt.Printf(" pow:%s\n", strconv.FormatBool(pow.Validate()))
-		if blcok.PrevBlockHash == 0 {
+		fmt.Printf("pow:%s\n", strconv.FormatBool(pow.Validate()))
+		if len(block.PrevBlockHash) == 0 {
 			break
 		}
 	}
 }
+
+//Send 进行交易
 func (cli *CLI) Send(from, to string, amount int) {
 	bc := NewBlockChain(from)
 	defer bc.DB.Close()
@@ -80,13 +78,13 @@ func (cli *CLI) Send(from, to string, amount int) {
 func (cli *CLI) Run() {
 	cli.VaiidateArgs()
 	queryBalanceCmd := flag.NewFlagSet("querybalance", flag.ExitOnError)
-	queryBalanceCmd_address := getBalanceCmd.String("address", "", "查询地址")
+	queryBalanceCmdAddress := queryBalanceCmd.String("address", "", "查询地址")
 	createBlockchainCmd := flag.NewFlagSet("createblockchain", flag.ExitOnError)
-	createBlockChainCmd_address := createBlockChainCmd.String("address", "", "根据地址创建")
+	createBlockChainCmdAddress := createBlockchainCmd.String("address", "", "根据地址创建")
 	sendCmd := flag.NewFlagSet("send", flag.ExitOnError)
-	sendCmd_from := sendCmd.String("from", "", "发送者地址")
-	sendCmd_to := sendCmd.String("to", "", "接收者者地址")
-	sendCmd_amount := sendCmd.Int("amount", 0, "发送金额")
+	sendCmdFrom := sendCmd.String("from", "", "发送者地址")
+	sendCmdTo := sendCmd.String("to", "", "接收者者地址")
+	sendCmdAmount := sendCmd.Int("amount", 0, "发送金额")
 	showBlockChainCmd := flag.NewFlagSet("showblockchain", flag.ExitOnError)
 	switch os.Args[1] {
 	case "querybalance":
@@ -105,7 +103,7 @@ func (cli *CLI) Run() {
 			log.Panic(err)
 		}
 	case "showblockchain":
-		err := showBlockchainCmd.Parse(os.Args[2:])
+		err := showBlockChainCmd.Parse(os.Args[2:])
 		if err != nil {
 			log.Panic(err)
 		}
@@ -114,25 +112,25 @@ func (cli *CLI) Run() {
 		os.Exit(1)
 	}
 	if queryBalanceCmd.Parsed() {
-		if *queryBalanceCmd_address == "" {
-			queryBalanceCmd_address.Usage()
+		if *queryBalanceCmdAddress == "" {
+			queryBalanceCmd.Usage()
 			os.Exit(1)
 		}
-		cli.GetBalance(*queryBalanceCmd_address)
+		cli.GetBalance(*queryBalanceCmdAddress)
 	}
 	if createBlockchainCmd.Parsed() {
-		if *createBlockChainCmd_address == "" {
-			createBlockChainCmd_address.Usage()
+		if *createBlockChainCmdAddress == "" {
+			queryBalanceCmd.Usage()
 			os.Exit(1)
 		}
-		cli.CreateBlockChain(createBlockChainCmd_address)
+		cli.CreateBlockChain(*createBlockChainCmdAddress)
 	}
 	if sendCmd.Parsed() {
-		if *sendCmd_from == "" || *sendCmd_to == "" || sendCmd_amount <= 0 {
+		if *sendCmdFrom == "" || *sendCmdTo == "" || *sendCmdAmount <= 0 {
 			sendCmd.Usage()
 			os.Exit(1)
 		}
-		cli.Send(*sendCmd_from, *sendCmd_to, *sendCmd_amount)
+		cli.Send(*sendCmdFrom, *sendCmdTo, *sendCmdAmount)
 	}
 	if showBlockChainCmd.Parsed() {
 		cli.ShowBlockChain()

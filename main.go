@@ -1,8 +1,10 @@
 package main
 
+import "fmt"
+
 func main() {
-	bc := NewBlockChain()
-	defer bc.DB.Close()
-	cli := CLI{bc}
+	fmt.Printf("%x\n", Encode([]byte("abcdefg")))
+	fmt.Printf("%s\n", Decode(Encode([]byte("abcdefg"))))
+	cli := CLI{}
 	cli.Run()
 }

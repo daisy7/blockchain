@@ -23,13 +23,28 @@ const BUCKET_NAME = "blocks"
 const GENESIS_BLOCK_DATA = "创世区块"
 const DB_LAST_KEY = "1"
 
-//GetDbLast 取出数据库最后一个数据
-func (blockchain *BlockChain) GetDbLast() []byte {
-	var lashHash []byte
-	err := blockchain.DB.View(func(tx *bolt.Tx) error {
+//DbExists 判断数据库存在
+func DbExists() bool {
+	if _, err := os.Stat(dbFile); os.IsNotExist(err) {
+		return false
+	}
+	return true
+}
+
+//NewBlockChain 创建区块链
+func NewBlockChain(address string) *BlockChain {
+	if DbExists() == false {
+		fmt.Println("数据库不存在,先创建")
+		os.Exit(1)
+	}
+	var tip []byte
+	db, err := bolt.Open(dbFile, 0600, nil)
+	if err != nil {
+		log.Panic(err)
+	}
+	err = db.Update(func(tx *bolt.Tx) error {
 		bucket := tx.Bucket([]byte(BUCKET_NAME))
 		if bucket == nil {
-			fmt.Println("数据库不包含区块链,创建新的区块链")
 			cbtx := NewCoinBaseTX(address, GENESIS_BLOCK_DATA)
 			genesis := NewGenesisBlock(cbtx)
 			bucket, err := tx.CreateBucket([]byte(BUCKET_NAME))
@@ -44,42 +59,12 @@ func (blockchain *BlockChain) GetDbLast() []byte {
 			if err != nil {
 				log.Panic(err)
 			}
-			lashHash = genesis.Hash
-		} else {
-			lashHash = bucket.Get([]byte(DB_LAST_KEY))
+			tip = genesis.Hash
 		}
+		tip = bucket.Get([]byte(DB_LAST_KEY))
 		return nil
 	})
-	if err != nil {
-		log.Panic(err)
-	}
-	return lashHash
-}
-
-//DbExists 判断数据库存在
-func DbExists() bool {
-	if _, err := os.Stat(dbFile); os.IsNotExist(err) {
-		return false
-	}
-	return true
-}
-
-//NewBlockChain 创建区块链
-func NewBlockChain(address string) *BlockChain {
-	if DbExists() == false {
-		fmt.Println("数据库不存在")
-		os.Exit(1)
-	}
-	db, err := bolt.Open(dbFile, 0600, nil)
-	if err != nil {
-		log.Panic(err)
-	}
-	err = db.Update(func(tx *bolt.Tx) error {
-		bucket := tx.Bucket([]byte(BUCKET_NAME))
-	})
-
 	bc := BlockChain{tip, db}
-	bc.Tip = bc.GetDbLast()
 	return &bc
 }
 
@@ -186,33 +171,6 @@ Work:
 	return accmulated, unspentOutput
 }
 
-//AddBlock 添加区块
-func (blocks *BlockChain) AddBlock(data string) {
-	var prevHash []byte
-	err := blocks.DB.View(func(tx *bolt.Tx) error {
-		bucket := tx.Bucket([]byte(BUCKET_NAME))
-		prevHash = bucket.Get([]byte("1"))
-		return nil
-	})
-	if err != nil {
-		log.Panic(err)
-	}
-	newBlock := NewBlock(data, prevHash)
-	blocks.DB.Update(func(t *bolt.Tx) error {
-		bucket := t.Bucket([]byte(BUCKET_NAME))
-		err := bucket.Put(newBlock.Hash, newBlock.Serialize())
-		if err != nil {
-			log.Panic(err)
-		}
-		err = bucket.Put([]byte("1"), newBlock.Hash)
-		if err != nil {
-			log.Panic(err)
-		}
-		blocks.Tip = newBlock.Hash
-		return nil
-	})
-}
-
 //Iterator 获取迭代器
 func (blocks *BlockChain) Iterator() *BlockChainIterator {
 	bcit := BlockChainIterator{blocks.Tip, blocks.DB}
@@ -222,17 +180,50 @@ func (blocks *BlockChain) Iterator() *BlockChainIterator {
 //Next 下一个区块
 func (it *BlockChainIterator) Next() *Block {
 	var block *Block
-	if it.currentHash != nil {
-		err := it.db.View(func(tx *bolt.Tx) error {
+	if it.CurrentHash != nil {
+		err := it.DB.View(func(tx *bolt.Tx) error {
 			bucket := tx.Bucket([]byte(BUCKET_NAME))
-			encodeBlock := bucket.Get(it.currentHash)
+			encodeBlock := bucket.Get(it.CurrentHash)
 			block = Deserialize(encodeBlock)
 			return nil
 		})
 		if err != nil {
 			log.Panic(err)
 		}
-		it.currentHash = block.PrevBlockHash
+		it.CurrentHash = block.PrevBlockHash
 	}
 	return block
+}
+
+// CreateBlockChain 创建数据库
+func CreateBlockChain(address string) *BlockChain {
+	if DbExists() {
+		fmt.Println("数据库存在")
+		os.Exit(1)
+	}
+	var tip []byte
+	db, err := bolt.Open(dbFile, 0600, nil)
+	if err != nil {
+		log.Panic(err)
+	}
+	err = db.Update(func(tx *bolt.Tx) error {
+		cbtx := NewCoinBaseTX(address, GENESIS_BLOCK_DATA)
+		genesis := NewGenesisBlock(cbtx)
+		bucket, err := tx.CreateBucket([]byte(BUCKET_NAME))
+		if err != nil {
+			log.Panic(err)
+		}
+		err = bucket.Put(genesis.Hash, genesis.Serialize())
+		if err != nil {
+			log.Panic(err)
+		}
+		err = bucket.Put([]byte(DB_LAST_KEY), genesis.Hash)
+		if err != nil {
+			log.Panic(err)
+		}
+		tip = genesis.Hash
+		return nil
+	})
+	bc := BlockChain{tip, db}
+	return &bc
 }

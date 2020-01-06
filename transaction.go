@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"crypto/sha256"
 	"encoding/gob"
-	"encoding/hex"
 	"fmt"
 	"log"
 )
@@ -66,19 +65,15 @@ func NewCoinBaseTX(to, data string) *Transaction {
 	return &tx
 }
 func NewUTXOTransaction(from, to string, amount int, bc *BlockChain) *Transaction {
-	var input []TXInput
-	var output []TXOutput
+	var inputs []TXInput
+	var outputs []TXOutput
 	acc, validOutputs := bc.FindSpendableOutputs(from, amount)
 	if acc < amount {
 		log.Panic("交易金额不足")
 	}
 	for txid, outs := range validOutputs {
-		txid, err := hex.Decode(txid)
-		if err != nil {
-			log.Panic(err)
-		}
 		for _, out := range outs {
-			input := TXInput{txid, out, from}
+			input := TXInput{[]byte(txid), out, from}
 			inputs = append(inputs, input)
 		}
 	}
